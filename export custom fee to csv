@@ -1,0 +1,86 @@
+// Add a submenu under WooCommerce Reports
+function custom_service_fee_report_submenu() {
+    add_submenu_page(
+        'woocommerce',
+        'Service Fee Report',
+        'Service Fee Report',
+        'manage_options',
+        'custom-service-fee-report',
+        'render_custom_service_fee_report_page'
+    );
+}
+add_action('admin_menu', 'custom_service_fee_report_submenu');
+
+// Callback function to render the custom admin page
+function render_custom_service_fee_report_page() {
+    if (isset($_POST['generate_report'])) {
+        $start_date = sanitize_text_field($_POST['start_date']);
+        $end_date = sanitize_text_field($_POST['end_date']);
+
+        // Generate the CSV using AJAX
+        $csv_url = admin_url('admin-ajax.php?action=generate_service_fee_csv&start_date=' . $start_date . '&end_date=' . $end_date);
+        wp_redirect($csv_url);
+        exit;
+    }
+    // Render the form
+    ?>
+    <div class="wrap">
+        <h1>Custom Service Fee Report </h1>
+		<h3><i>Developed by Babatuyi Oluwafemi John..jsmarttech..</i> </h3>
+        <form method="post" action="">
+            <label for="start_date">Start Date:</label>
+            <input type="date" name="start_date">
+            
+            <label for="end_date">End Date:</label>
+            <input type="date" name="end_date">
+            
+            <input type="submit" name="generate_report" class="button" value="Generate Report">
+        </form>
+    </div>
+    <?php
+}
+
+// Callback function for generating CSV via AJAX
+function generate_service_fee_csv_callback() {
+    if (isset($_GET['start_date']) && isset($_GET['end_date'])) {
+        $start_date = sanitize_text_field($_GET['start_date']);
+        $end_date = sanitize_text_field($_GET['end_date']);
+
+        // Query the database to retrieve orders and service fee data
+        global $wpdb;
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}posts p
+                 INNER JOIN {$wpdb->prefix}postmeta pm ON p.ID = pm.post_id
+                 WHERE p.post_type = 'shop_order'
+                 AND pm.meta_key = 'Service Fee'
+                 AND p.post_date >= %s AND p.post_date <= %s",
+                $start_date . ' 00:00:00', $end_date . ' 23:59:59'
+            )
+        );
+
+        if (!empty($results)) {
+            // Generate and output the report as CSV
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment; filename="service_fee_report.csv"');
+            $output = fopen('php://output', 'w');
+
+            // Output CSV headers
+            fputcsv($output, array('Order ID', 'Order Date', 'Service Fee'));
+
+            foreach ($results as $result) {
+                $order_id = $result->ID;
+                $order_date = $result->post_date;
+                $service_fee = get_post_meta($order_id, 'Service Fee', true);
+
+                // Output row data
+                fputcsv($output, array($order_id, $order_date, $service_fee));
+            }
+
+            fclose($output);
+            exit;
+        }
+    }
+}
+add_action('wp_ajax_generate_service_fee_csv', 'generate_service_fee_csv_callback');
+add_action('wp_ajax_nopriv_generate_service_fee_csv', 'generate_service_fee_csv_callback');
