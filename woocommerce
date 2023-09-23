@@ -1,0 +1,48 @@
+add_action( 'woocommerce_cart_calculate_fees', 'woocommerce_custom_fee' );
+function woocommerce_custom_fee( $cart ) {
+    if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
+        return;
+    }
+
+    $percentage = 0.10;
+    $service_fee = $cart->cart_contents_total * $percentage;
+
+    // Add the service fee as a non-taxable fee
+    $cart->add_fee( __( 'Service Fee', 'woocommerce' ), $service_fee, false );
+}
+
+add_filter( 'woocommerce_get_order_item_totals', 'add_service_charge_to_order_totals', 10, 3 );
+function add_service_charge_to_order_totals( $total_rows, $order, $tax_display ) {
+    $service_fee = get_post_meta( $order->get_id(), 'Service Fee', true );
+
+    if ( ! empty( $service_fee ) ) {
+        $total_rows['service_fee'] = array(
+            'label' => __( 'Service Fee', 'woocommerce' ),
+            'value' => wc_price( $service_fee ),
+        );
+    }
+
+    return $total_rows;
+}
+
+// Display service fee on order dashboard
+add_action( 'woocommerce_admin_order_totals_after_total', 'display_service_fee_on_order_dashboard', 10, 1 );
+function display_service_fee_on_order_dashboard( $order ) {
+    if ( is_a($order, 'WC_Order') ) {
+        $order_id = $order->get_id();
+        $service_fee = get_post_meta( $order_id, 'Service Fee', true );
+
+        if ( ! empty( $service_fee ) ) {
+            echo '<tr class="order-service-fee"><td>Service Fee:</td><td>' . wc_price( $service_fee ) . '</td></tr>';
+        }
+    }
+}
+// Add a service fee as a post meta when an order is created
+add_action('woocommerce_new_order', 'add_service_fee_to_order_meta');
+function add_service_fee_to_order_meta($order_id) {
+    $percentage = 0.10;
+    $service_fee = WC()->cart->cart_contents_total * $percentage;
+    
+    // Store the service fee as post meta
+    update_post_meta($order_id, 'Service Fee', $service_fee);
+}
