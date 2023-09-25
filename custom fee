@@ -1,3 +1,5 @@
+<?php 
+
 add_action( 'woocommerce_cart_calculate_fees', 'woocommerce_custom_fee' );
 function woocommerce_custom_fee( $cart ) {
     if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
@@ -46,3 +48,4 @@ function add_service_fee_to_order_meta($order_id) {
     // Store the service fee as post meta
     update_post_meta($order_id, 'Service Fee', $service_fee);
 }
+?>
