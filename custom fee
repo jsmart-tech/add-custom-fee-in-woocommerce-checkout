@@ -1,48 +1,34 @@
-// Add custom fields to the WooCommerce order review section.
-add_action('woocommerce_pay_order_before_submit', 'custom_add_custom_fields_to_order_review');
-function custom_add_custom_fields_to_order_review() {
-    woocommerce_form_field('custom_government_id_upload', array(
-        'type' => 'file',
-        'class' => array('form-row-wide'),
-        'label' => '<strong>' . __('Kindly Upload a Valid Government ID') . '</strong>',
-        'required' => true,
-        'placeholder' => __('Choose a file'),
-    ));
+// Add a service fee to the cart
+add_action('woocommerce_cart_calculate_fees', 'woocommerce_custom_fee');
+function woocommerce_custom_fee() {
+    $percentage = 0.10;
+    $service_fee = WC()->cart->cart_contents_total * $percentage;
+
+    // Add the service fee as a non-taxable fee
+    WC()->cart->add_fee(__('Service Fee', 'woocommerce'), $service_fee, false);
 }
 
-// Save custom field data when order status changes to "processing"
-add_action('woocommerce_order_status_processing', 'custom_save_custom_field_data');
-function custom_save_custom_field_data($order_id) {
-    if (isset($_FILES['custom_government_id_upload'])) {
-        $uploaded_file = $_FILES['custom_government_id_upload'];
-        $upload_overrides = array('test_form' => false);
+// Add a service fee as post meta when an order is created
+add_action('woocommerce_new_order', 'add_service_fee_to_order_meta', 10, 1);
+function add_service_fee_to_order_meta($order_id) {
+    $percentage = 0.10;
+    $service_fee = WC()->cart->cart_contents_total * $percentage;
 
-        $movefile = wp_handle_upload($uploaded_file, $upload_overrides);
-
-        if ($movefile && !isset($movefile['error'])) {
-            $file_url = $movefile['url'];
-            update_post_meta($order_id, '_custom_government_id_upload', $file_url);
-        }
-    }
+    // Store the service fee as post meta
+    update_post_meta($order_id, 'Service Fee', $service_fee);
 }
 
-// Display the custom field in the thank you page
-add_action('woocommerce_thankyou', 'custom_display_custom_field_on_thankyou_page');
-function custom_display_custom_field_on_thankyou_page($order_id) {
-    $order = wc_get_order($order_id);
-    $file_url = $order->get_meta('_custom_government_id_upload');
+// Add service fee to order item totals
+add_filter('woocommerce_get_order_item_totals', 'add_service_charge_to_order_totals', 10, 3);
+function add_service_charge_to_order_totals($total_rows, $order, $tax_display) {
+    $service_fee = get_post_meta($order->get_id(), 'Service Fee', true);
 
-    if (!empty($file_url)) {
-        echo '<p><strong>' . __('Kindly Upload a Valid Government ID') . ':</strong> <a href="' . esc_url($file_url) . '">Download File</a></p>';
+    if (!empty($service_fee)) {
+        $total_rows['service_fee'] = array(
+            'label' => __('Service Fee', 'woocommerce'),
+            'value' => wc_price($service_fee),
+        );
     }
-}
 
-// Display custom field value on the admin order edit page
-add_action('woocommerce_admin_order_data_after_billing_address', 'custom_display_custom_field_on_admin_order_page');
-function custom_display_custom_field_on_admin_order_page($order) {
-    $file_url = get_post_meta($order->get_id(), '_custom_government_id_upload', true);
-
-    if (!empty($file_url)) {
-        echo '<p><strong>Kindly Upload a Valid Government ID:</strong> <a href="' . esc_url($file_url) . '">Download File</a></p>';
-    }
+    return $total_rows;
 }
